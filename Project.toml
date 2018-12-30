@@ -1,0 +1,15 @@
+authors = ["mtsch <matijacufar@gmail.com>"]
+name = "IntrinsicPersistence"
+uuid = "db27130a-0c5e-11e9-3c49-134729fc6916"
+version = "0.1.0"
+
+[deps]
+
+[compat]
+julia = "1.0"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
