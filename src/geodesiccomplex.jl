@@ -1,10 +1,6 @@
-module GeodesicComplexes
-export GeodesicComplex, npoints, nlandmarks, points, landmarks, nonlandmarks, landmark_idxs
-
 using Distances
 using LightGraphs
 using NearestNeighbors
-using RecipesBase
 using SimpleWeightedGraphs
 using StaticArrays
 
@@ -126,7 +122,7 @@ NN.inrange(gc::GeodesicComplex, i, r = gc.radius, sortres = false) =
 NN.knn(gc::GeodesicComplex, pts, k, sortres = false, skip = NN.always_false) =
     knn(gc.tree, pts, k, sortres, skip)
 
-# DistancesInterface
+# Distances interface
 Distances.result_type(::GeodesicComplex{T}, ::Int, ::Int) where {T} = T
 Distances.evaluate(gc::GeodesicComplex, i, j) =
     evaluate(gc.metric, points(gc, i), points(gc, j))
@@ -138,49 +134,3 @@ Distances.pairwise!(res, gc::GeodesicComplex, is, js) =
     pairwise!(res, gc.metric, is, js)
 Distances.pairwise(gc::GeodesicComplex, is, js) =
     pairwise(gc.metric, is, js)
-
-# Plots recipe
-function getxyz(pts)
-    xs = get.(pts, 1, 0.0)
-    ys = get.(pts, 2, 0.0)
-    zs = get.(pts, 3, 0.0)
-    if all(iszero, zs)
-        xs, ys
-    else
-        xs, ys, zs
-    end
-end
-
-@recipe function plot(gc::GeodesicComplex; only_landmarks = true, graph = true)
-    # edges
-    if graph
-        @series begin
-            label := "edges"
-            edgepoints = Vector{Float64}[]
-            for e in edges(gc)
-                s = landmarks(gc, src(e))
-                d = landmarks(gc, dst(e))
-                append!(edgepoints, (s, d, fill(NaN, length(s))))
-            end
-            getxyz(edgepoints)
-        end
-    end
-    # landmarks
-    @series begin
-        markersize --> 1.0
-        seriestype --> :scatter
-        label := "landmarks"
-        getxyz(landmarks(gc))
-    end
-    # others
-    if !only_landmarks
-        @series begin
-            markersize --> 0.5
-            seriestype --> :scatter
-            label := "others"
-            getxyz(points(gc, setdiff(1:npoints(gc), landmark_idxs(gc))))
-        end
-    end
-end
-
-end

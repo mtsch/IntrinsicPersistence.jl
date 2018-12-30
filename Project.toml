@@ -1,9 +1,17 @@
-authors = ["mtsch <matijacufar@gmail.com>"]
 name = "IntrinsicPersistence"
 uuid = "db27130a-0c5e-11e9-3c49-134729fc6916"
+authors = ["mtsch <matijacufar@gmail.com>"]
 version = "0.1.0"
 
 [deps]
+Distances = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
+LightGraphs = "093fc24a-ae57-5d10-9952-331d41423f4d"
+NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+RecipesBase = "3cdcf5f2-1ef4-517c-9805-6587b60abb01"
+SimpleWeightedGraphs = "47aef6b3-ad0c-573a-a1e2-d07658019622"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
 julia = "1.0"

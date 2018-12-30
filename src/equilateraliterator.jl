@@ -1,8 +1,5 @@
-module EquilateralIterators
-export equilaterals, getsortededges, EquilateralIterator
-
 """
-it iterates equilateral triangles!
+It iterates (approximately) equilateral triangles!
 """
 struct EquilateralIterator{T}
     dists       ::Matrix{T}
@@ -25,14 +22,14 @@ Iterator that returns approximately (up to `tol`) equilateral triangles in
 distance matrix `dists`, sorted by longest side length.
 """
 equilaterals(dists::AbstractMatrix{T}, tol) where {T} =
-    EquilateralIterator{T}(dists, getsortededges(dists), T(tol))
+    EquilateralIterator{T}(dists, sortededges(dists), T(tol))
 
 """
-    getsortededges(dists)
+    sortededges(dists)
 
-Get ordering on edges (values in matrix).
+Return edges `(i, j)` ordered by the values of `dists[i, j]`.
 """
-getsortededges(dists) =
+sortededges(dists) =
     sort!([(i, j) for i in 2:size(dists, 1) for j in 1:i-1],
           lt = (e1, e2) -> isless(dists[e1...], dists[e2...]))
 
@@ -69,6 +66,4 @@ function Base.iterate(ei::EquilateralIterator, st = (1, 1))
         eindex += 1
     end
     nothing
-end
-
 end

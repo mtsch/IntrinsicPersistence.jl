@@ -1,5 +1,18 @@
 module IntrinsicPersistence
 
-greet() = print("Hello World!")
+using Distances
+using LightGraphs
+using NearestNeighbors
+using RecipesBase
+using SimpleWeightedGraphs
+using StaticArrays
 
-end # module
+using Random
+using SparseArrays
+
+include("geodesiccomplex.jl")
+include("equilateraliterator.jl")
+include("persistence.jl")
+include("plotting.jl")
+
+end

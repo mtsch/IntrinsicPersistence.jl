@@ -1,9 +1,3 @@
-using LightGraphs
-using SimpleWeightedGraphs
-using StaticArrays
-using Distances
-using NearestNeighbors
-
 """
     getindexmatrix(dists)
 
@@ -313,7 +307,6 @@ end
 
 # TODO: critical points
 
-include("plotting.jl")
 
 # ======================================================================================== #
 
