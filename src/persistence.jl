@@ -6,7 +6,7 @@ largest. Assumes `dists` is symmetric.
 """
 function getindexmatrix(dists)
     M = fill(0, size(dists))
-    for (i, (u, v)) in enumerate(getsortededges(dists))
+    for (i, (u, v)) in enumerate(sortededges(dists))
         M[u, v] = i
         M[v, u] = i
     end
@@ -35,13 +35,11 @@ end
 coverradius(g::AbstractGraph) = minimum(weights(g))
 coverradius(g::GeodesicComplex) = g.radius
 
-function PersistenceState(gc::AbstractGraph)
+function PersistenceState(gc)
     # todo: is this correct? should be maximum(weights)?
     r = coverradius(gc)
     # todo: split connected components
-    floyd = floyd_warshall_shortest_paths(gc)
-    dists = floyd.dists
-    parents = floyd.parents
+    dists, parents = landmark_shortest_paths(gc)
     indexmatrix = getindexmatrix(dists)
     triangles = equilaterals(dists, 2r)
 
@@ -158,7 +156,7 @@ function processtriangle!(st::PersistenceState, triangle, diameter, showprogress
     end
 end
 
-function persistence(gc::AbstractGraph, showprogress = false)
+function persistence(gc, showprogress = false)
     NOP_COUNT[] = 0
     YEP_COUNT[] = 0
     ALL_COUNT[] = 0

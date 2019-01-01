@@ -15,4 +15,6 @@ include("equilateraliterator.jl")
 include("persistence.jl")
 include("plotting.jl")
 
+export persistence, GeodesicComplex
+
 end

@@ -7,15 +7,14 @@ using StaticArrays
 using Random
 using SparseArrays
 
-struct GeodesicComplex{T, P<:AbstractVector, M<:Metric, K<:NNTree{P, M}} <:
-                       AbstractSimpleWeightedGraph{Int, T}
+struct GeodesicComplex{T, P<:AbstractVector, M<:Metric,
+                       I<:AbstractVector{Int}, K<:NNTree{P, M}}
     points        ::Vector{P}
-    landmark_idxs ::Vector{Int}
-    graph         ::SimpleWeightedGraph{Int, T} # <- rab se samo dists in paths
-    tree          ::K
-    cover         ::Vector{Set{Int}} # <- se ne rab
     radius        ::T
     metric        ::M
+    landmark_idxs ::I
+    graph         ::SimpleWeightedGraph{Int, T} # <- rab se samo dists in paths
+    tree          ::K
 end
 
 function GeodesicComplex(pts::AbstractVector{<:AbstractVector}, r; landmarks = nothing,
@@ -38,7 +37,7 @@ function GeodesicComplex(pts::AbstractVector{<:AbstractVector}, r; landmarks = n
     end
     graph = SimpleWeightedGraph(sparse(I, J, V, n, n))
 
-    GeodesicComplex(pts, landmark_idxs, graph, kdt, cover, T(r), metric)
+    GeodesicComplex(pts, T(r), metric, landmark_idxs, graph, kdt)
 end
 
 function getcover(::Nothing, pts, r, tree)
@@ -61,13 +60,21 @@ end
 
 function getcover(landmarks, pts, r, tree)
     cover = Set{Int}[]
+    landmarks = sort(landmarks)
 
     for l in landmarks
         inball = inrange(tree, pts[l], r)
         push!(cover, Set(inball))
     end
-    ord = sortperm(landmarks)
-    landmarks[ord], cover[ord]
+    landmarks, cover
+end
+
+# new interface:
+graph(gc::GeodesicComplex) = gc.graph
+
+function landmark_shortest_paths(gc)
+    fw = floyd_warshall_shortest_paths(graph(gc))
+    fw.dists, fw.parents
 end
 
 # Getters
