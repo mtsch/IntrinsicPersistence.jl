@@ -32,18 +32,15 @@ struct PersistenceState{T}
     results     ::Vector{Tuple{Vector{Int}, NTuple{3, Int}, T}}
 end
 
-coverradius(g::AbstractGraph) = minimum(weights(g))
-coverradius(g::GeodesicComplex) = g.radius
-
 function PersistenceState(gc)
     # todo: is this correct? should be maximum(weights)?
-    r = coverradius(gc)
+    r = radius(gc)
     # todo: split connected components
     dists, parents = landmark_shortest_paths(gc)
     indexmatrix = getindexmatrix(dists)
     triangles = equilaterals(dists, 2r)
 
-    reduced = fill(BitSet(), binomial(nv(gc), 2))
+    reduced = fill(BitSet(), binomial(n_landmarks(gc), 2))
 
     PersistenceState(dists, parents, indexmatrix, triangles, r, reduced,
                      BitSet(), Int[], Tuple{Vector{Int}, NTuple{3, Int}, eltype(dists)}[])
@@ -169,17 +166,12 @@ function persistence(gc, showprogress = false)
     end
     showprogress && println("Postprocessing...")
     cycles = map(st.results) do (α, Δ, d)
-        landmark_idxs(gc, α), landmark_idxs.(Ref(gc), Δ), d
+        landmarks(gc, α), landmarks.(Ref(gc), Δ), d
     end
     postprocess(gc, cycles)
 end
 
 # ======================================================================================== #
-
-_pairwise(gc::GeodesicComplex{T, D}, is, js) where {T, D} =
-    pairwise(gc.metric,
-             reshape(reinterpret(T, points(gc, is)), (length(D), length(is))),
-             reshape(reinterpret(T, points(gc, js)), (length(D), length(js))))
 
 """
 find the index and distance of point in `gc` within `gc.radius` of point(s) `p` that
@@ -187,7 +179,7 @@ minimizes the maximum distance to points in `pts`.
 """
 function centerpoint(gc, p, pts)
     inball = inrange(gc.tree, points(gc, p), gc.radius)
-    dists = _pairwise(gc, inball, pts)
+    dists = pairwise_ambient_distance(gc, inball, pts)
     μ, i = findmin(vec(maximum(dists, dims = 2)))
     μ, inball[i]
 end
@@ -209,7 +201,7 @@ function shrink(gc::GeodesicComplex{T}, α) where {T}
             end
         end
     end
-    α, maximum(_pairwise(gc, α, α))
+    α, maximum(pairwise_ambient_distance(gc, α, α))
 end
 
 # Kaj bo s tem?
@@ -225,7 +217,7 @@ function densify(gc::GeodesicComplex, α)
             push!(β, u)
             inballs = inrange(gc.tree, points(gc, [u, v]), gc.radius)
             candidates = union(inballs...)
-            dists = _pairwise(gc, candidates, [u, v])
+            dists = pairwise_ambient_distance(gc, candidates, [u, v])
             new = candidates[argmin(vec(maximum(dists, dims = 2)))]
             if new ≠ u && new ≠ v
                 changed = true

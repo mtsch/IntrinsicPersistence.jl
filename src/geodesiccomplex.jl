@@ -9,12 +9,12 @@ using SparseArrays
 
 struct GeodesicComplex{T, P<:AbstractVector, M<:Metric,
                        I<:AbstractVector{Int}, K<:NNTree{P, M}}
-    points        ::Vector{P}
-    radius        ::T
-    metric        ::M
-    landmark_idxs ::I
-    graph         ::SimpleWeightedGraph{Int, T} # <- rab se samo dists in paths
-    tree          ::K
+    points    ::Vector{P}
+    radius    ::T
+    metric    ::M
+    landmarks ::I
+    graph     ::SimpleWeightedGraph{Int, T} # <- rab se samo dists in paths
+    tree      ::K
 end
 
 function GeodesicComplex(pts::AbstractVector{<:AbstractVector}, r; landmarks = nothing,
@@ -69,14 +69,38 @@ function getcover(landmarks, pts, r, tree)
     landmarks, cover
 end
 
+function Base.show(io::IO, gc::GeodesicComplex{T, P}) where {T, P}
+    print(io, "GeodesicComplex{$T, $P} with $(n_points(gc)) points, " *
+          "$(n_landmarks(gc)) landmarks and $(ne(landmark_graph(gc))) edges")
+end
+
 # new interface:
-graph(gc::GeodesicComplex) = gc.graph
+landmarks(gc::GeodesicComplex) = gc.landmarks
+landmarks(gc::GeodesicComplex, idxs) = gc.landmarks[idxs]
+
+n_landmarks(gc::GeodesicComplex) = length(gc.landmarks)
+
+points(gc::GeodesicComplex) = gc.points
+points(gc::GeodesicComplex, idxs) = gc.points[idxs]
+
+n_points(gc::GeodesicComplex) = length(gc.points)
+
+radius(gc::GeodesicComplex) = gc.radius
+
+landmark_graph(gc::GeodesicComplex) = gc.graph
 
 function landmark_shortest_paths(gc)
-    fw = floyd_warshall_shortest_paths(graph(gc))
+    fw = floyd_warshall_shortest_paths(landmark_graph(gc))
     fw.dists, fw.parents
 end
 
+pairwise_ambient_distance(gc::GeodesicComplex{T, D}, is, js) where {T, D} =
+    pairwise(gc.metric,
+             reshape(reinterpret(T, points(gc, is)), (length(D), length(is))),
+             reshape(reinterpret(T, points(gc, js)), (length(D), length(js))))
+
+
+#=
 # Getters
 # TODO = Int?
 Base.eltype(::GeodesicComplex{<:Any, P}) where {P} = P
@@ -101,7 +125,7 @@ landmark_idxs(gc::GeodesicComplex, idxs) =
     gc.landmark_idxs[idxs]
 
 nonlandmarks(gc::GeodesicComplex, idxs=1:npoints(gc)-nlandmarks(gc)) =
-    gc.points[setdiff(1:npoints(gc), gc.landmark_idxs)[idxs]]
+    gc.points[setdiff(1:npoints(gc), gc.landmark)[idxs]]
 
 points_mat(gc::GeodesicComplex{<:Any, P}, idxs) where {P} =
     resape(reinterpret(T, points(gc, idxs)), (length(P), length(idxs)))
@@ -116,11 +140,6 @@ LightGraphs.has_edge(gc::GeodesicComplex, u::Integer, v::Integer) = has_edge(gc.
 LightGraphs.has_vertex(gc::GeodesicComplex, v::Integer) = has_edge(gc.graph, v)
 LightGraphs.inneighbors(gc::GeodesicComplex, v::Integer) = inneighbors(gc.graph, v)
 LightGraphs.outneighbors(gc::GeodesicComplex, v::Integer) = outneighbors(gc.graph, v)
-
-function Base.show(io::IO, gc::GeodesicComplex{T, P}) where {T, P}
-    print(io, "GeodesicComplex{$T, $P} with $(npoints(gc)) points, " *
-          "$(nlandmarks(gc)) landmarks and $(ne(gc)) edges")
-end
 
 # NearestNeighbors interface
 const NN = NearestNeighbors
@@ -141,3 +160,5 @@ Distances.pairwise!(res, gc::GeodesicComplex, is, js) =
     pairwise!(res, gc.metric, is, js)
 Distances.pairwise(gc::GeodesicComplex, is, js) =
     pairwise(gc.metric, is, js)
+
+=#
