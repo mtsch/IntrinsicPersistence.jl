@@ -178,7 +178,7 @@ find the index and distance of point in `gc` within `gc.radius` of point(s) `p` 
 minimizes the maximum distance to points in `pts`.
 """
 function centerpoint(gc, p, pts)
-    inball = inrange(gc.tree, points(gc, p), gc.radius)
+    inball = nearby_points(gc, p)
     dists = pairwise_ambient_distance(gc, inball, pts)
     μ, i = findmin(vec(maximum(dists, dims = 2)))
     μ, inball[i]
@@ -215,7 +215,7 @@ function densify(gc::GeodesicComplex, α)
             u = α[i]
             v = α[mod1(i + 1, length(α))]
             push!(β, u)
-            inballs = inrange(gc.tree, points(gc, [u, v]), gc.radius)
+            inballs = nearby_points(gc, [u, v])
             candidates = union(inballs...)
             dists = pairwise_ambient_distance(gc, candidates, [u, v])
             new = candidates[argmin(vec(maximum(dists, dims = 2)))]
@@ -237,7 +237,7 @@ function criticalpoints(gc::GeodesicComplex, α)
         changed = false
         d = ε = typemax(T)
         for (i, u) in enumerate(α)
-            inball = inrange(gc.tree, points(gc, u), gc.radius)
+            inball = nearby_points(gc, u)
             # Spaghetti mapreduce avoids allocating distance matrices.
             ε, j = mapreduce(min, enumerate(inball)) do (i, v)
                 (maximum(evaluate(gc.metric, points(gc, v), landmarks(gc, w))
@@ -296,86 +296,3 @@ struct IntrinsicPersistenceResults{T, G<:GeodesicComplex{T}}
 end
 
 # TODO: critical points
-
-
-# ======================================================================================== #
-
-# TODO: optimize
-function singlecontract!(α, gc::GeodesicComplex{T}, cycle) where {T}
-    changed = false
-    d = ε = typemax(T)
-    for (i, v) in enumerate(α)
-        N = inrange(gc.tree, points(gc, v), gc.radius)
-        D = diststocycle(gc, N, cycle)
-        ε, j = findmin(vec(maximum(D, dims = 2)))
-        d = min(ε, d)
-        changed |= α[i] ≠ N[j]
-        α[i] = N[j]
-    end
-    unique!(α)
-    changed, d
-end
-
-function singlecontract_noalloc!(α, gc::GeodesicComplex{T}, cycle) where {T}
-    changed = false
-    d = ε = typemax(T)
-    for (i, u) in enumerate(α)
-        N = inrange(gc.tree, points(gc, u), gc.radius)
-        # Spaghetti mapreduce avoids allocating distance matrices.
-        ε, j = mapreduce(min, enumerate(N)) do (i, v)
-            (maximum(evaluate(gc.metric, points(gc, v), landmarks(gc, w))
-                     for w in cycle), i)
-        end
-        d = min(ε, d)
-        changed |= α[i] ≠ N[j]
-        α[i] = N[j]
-    end
-    unique!(α)
-    changed, d
-end
-
-function contract(gc::GeodesicComplex{T}, cycle) where {T}
-    α = landmark_idxs(gc, cycle)
-    ε = zero(T)
-    changed = true
-    while changed
-        changed, ε = singlecontract_noalloc!(α, gc, cycle)
-    end
-    α, ε
-end
-
-"""
-
-fun takes current point index, gc, the current cycle and the starting cycle.
-"""
-function localminimum(fun, gc::GeodesicComplex{T}, cycle) where {T}
-    α = Int[]
-    β = landmark_idxs(gc, cycle)
-    old = typemax(T)
-    new = typemax(T)
-    while isempty(α) || old > new
-        unique!(β)
-        resize!(α, length(β))
-        copyto!(α, β)
-        old = new
-        for (i, u) in enumerate(α)
-            m, β[i] = findmin(map(
-                fun,
-                inrange(gc, u, true),
-                Iterators.repeated(gc),
-                Iterators.repeated(α),
-                Iterators.repeated(cycle)))
-            new = min(new, m)
-        end
-    end
-    β, new
-end
-
-contraction(v, gc, _, cycle) =
-    maximum(evaluate(gc.metric, v, u) for u in cycle)
-
-diststocycle(args...) = error("TODO")
-#diststocycle(gc::GeodesicComplex{T, D}, is, cycle)
-#    pairwise(gc.metric,
-#             reshape(reinterpret(T, points(gc, is)), (D, length(is))),
-#             reshape(reinterpret(T, landmarks(gc, cycle)), (D, length(cycle))))

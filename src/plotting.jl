@@ -17,9 +17,9 @@ end
         @series begin
             label := "edges"
             edgepoints = Vector{Float64}[]
-            for e in edges(gc)
-                s = landmarks(gc, src(e))
-                d = landmarks(gc, dst(e))
+            for e in edges(landmark_graph(gc))
+                s = points(gc, landmarks(gc, src(e)))
+                d = points(gc, landmarks(gc, dst(e)))
                 append!(edgepoints, (s, d, fill(NaN, length(s))))
             end
             getxyz(edgepoints)
@@ -30,7 +30,7 @@ end
         markersize --> 1.0
         seriestype --> :scatter
         label := "landmarks"
-        getxyz(landmarks(gc))
+        getxyz(points(gc, landmarks(gc)))
     end
     # others
     if !only_landmarks
@@ -38,7 +38,7 @@ end
             markersize --> 0.5
             seriestype --> :scatter
             label := "others"
-            getxyz(points(gc, setdiff(1:npoints(gc), landmark_idxs(gc))))
+            getxyz(points(gc, setdiff(1:n_points(gc), landmarks(gc))))
         end
     end
 end
@@ -53,7 +53,7 @@ end
         markersize --> 1.0
         seriestype := :scatter
         label := "landmarks"
-        getxyz(landmarks(gc))
+        getxyz(points(gc, landmarks(gc)))
     end
     # others
     if !only_landmarks
@@ -62,7 +62,7 @@ end
             seriestype --> :scatter
             label := "others"
 
-            getxyz(nonlandmarks(gc))
+            getxyz(points(gc, setdiff(1:n_points(gc), landmarks(gc))))
         end
     end
     # cycles
