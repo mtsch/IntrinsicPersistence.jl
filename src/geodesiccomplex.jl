@@ -100,3 +100,5 @@ pairwise_ambient_distance(gc::GeodesicComplex{T, D}, is, js) where {T, D} =
              reshape(reinterpret(T, points(gc, js)), (length(D), length(js))))
 
 nearby_points(gc::GeodesicComplex, i, r = radius(gc)) = inrange(gc.tree, points(gc, i), r)
+
+distance_result_type(gc::GeodesicComplex{T}) where T = T

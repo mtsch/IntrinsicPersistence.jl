@@ -88,7 +88,7 @@ end
 """
     low(σ::BitSet)
 
-Get the largest index in `σ`.
+Get the largest index in `σ` / the lowest entry in the column.
 """
 low(σ::BitSet) = length(σ) > 0 ? last(σ) : 0
 
@@ -107,11 +107,11 @@ function reduce!(st::PersistenceState)
 end
 
 """
-    movepath!(st::PersistenceState, u, v)
+    appendpath!(st::PersistenceState, u, v)
 
-Move shortest path from `u` to `v` into `st.cycle` and `st.σ`.
+Append the shortest path from `u` to `v` into `st.cycle` and `st.σ`.
 """
-function movepath!(st::PersistenceState, u, v)
+function appendpath!(st::PersistenceState, u, v)
     while u ≠ v
         u′ = st.parents[v, u]
         push!(st.σ, st.indexmatrix[u, u′])
@@ -123,24 +123,23 @@ end
 """
     movecycle!(st::PersistenceState, Δ)
 
-Move cycle spanned by `Δ` into `st.cycle` and `st.σ`.
+Move the cycle spanned by triangle `Δ` into `st.cycle` and `st.σ`.
 """
 function movecycle!(st::PersistenceState, (i, j, k))
     empty!(st.σ)
     empty!(st.cycle)
-    movepath!(st, i, j)
-    movepath!(st, j, k)
-    movepath!(st, k, i)
+    appendpath!(st, i, j)
+    appendpath!(st, j, k)
+    appendpath!(st, k, i)
 end
 
 """
 TODO
 """
-function processtriangle!(st::PersistenceState, triangle, diameter, showprogress)
+function processtriangle!(st::PersistenceState, triangle, diameter)
     movecycle!(st, triangle)
-    # Skip cycles that visit a node more than once.
+    # Skip cycles that visit a node more than once and nongeodesic cycles.
     length(st.σ) == length(st.cycle) || return
-    # Geodesic check
     isgeodesic(st, triangle) || return
 
     l = reduce!(st)
@@ -148,7 +147,6 @@ function processtriangle!(st::PersistenceState, triangle, diameter, showprogress
         st.reduced[l] = copy(st.σ)
         push!(st.results, (copy(st.cycle), triangle, diameter))
     else
-        #println(st.cycle)
         RED_COUNT[] += 1
     end
 end
@@ -162,11 +160,11 @@ function persistence(gc, showprogress = false)
     st = PersistenceState(gc)
 
     for (Δ, diam) in st.triangles
-        processtriangle!(st, Δ, diam, showprogress)
+        processtriangle!(st, Δ, diam)
     end
     showprogress && println("Postprocessing...")
-    cycles = map(st.results) do (α, Δ, d)
-        landmarks(gc, α), landmarks.(Ref(gc), Δ), d
+    cycles = map(st.results) do (α, _, _)
+        landmarks(gc, α)
     end
     postprocess(gc, cycles)
 end
@@ -184,8 +182,9 @@ function centerpoint(gc, p, pts)
     μ, inball[i]
 end
 
-function shrink(gc::GeodesicComplex{T}, α) where {T}
-    α = copy(α)
+shrink(gc, α) where {T} = shrink!(gc, copy(α))
+
+function shrink!(gc, α)
     changed = true
     while changed
         changed = false
@@ -201,10 +200,11 @@ function shrink(gc::GeodesicComplex{T}, α) where {T}
             end
         end
     end
-    α, maximum(pairwise_ambient_distance(gc, α, α))
+    α
 end
 
 # Kaj bo s tem?
+# TODO: densify + shrink
 function densify(gc::GeodesicComplex, α)
     α = copy(α)
     β = Int[]
@@ -225,10 +225,12 @@ function densify(gc::GeodesicComplex, α)
             end
         end
         move!(α, β)
+        shrink!(gc, α)
     end
     α
 end
 
+#=
 function criticalpoints(gc::GeodesicComplex, α)
     α = copy(α)
     ε = zero(T)
@@ -251,6 +253,7 @@ function criticalpoints(gc::GeodesicComplex, α)
     end
     α, ε
 end
+=#
 
 function move!(a, b)
     resize!(a, length(b))
@@ -259,40 +262,42 @@ function move!(a, b)
     a
 end
 
-function postprocess(gc, cycles)
-    res = map(cycles) do (α, Δ, d)
-        cycle, diam = shrink(gc, α)
-        #dense = densify(gc, cycle)
-        dense = copy(α)
-        Cycle(cycle, dense, Δ, perimeter(gc, cycle), diam, d, 0)
+function postprocess(gc, cycles, dense = false)
+    res = map(cycles) do α
+        if dense
+            cycle = densify(gc, α)
+        else
+            cycle = shrink(gc, α)
+        end
+        Cycle(gc, cycle, perimeter(gc, cycle), diameter(gc, cycle))
     end
     filter!(res) do cycle
-        length(cycle.points) > 2 || cycle.diameter > gc.radius
+        length(cycle) > 2 && diameter(cycle) > radius(gc)
     end
-    IntrinsicPersistenceResults(gc, res)
 end
 
-function perimeter(gc::GeodesicComplex{T}, α) where {T}
-    res = zero(T)
-    for i in eachindex(α)
-        res += evaluate(gc.metric, points(gc, α[i]), points(gc, α[mod1(i + 1, length(α))]))
+#TODO new interface
+perimeter(gc, α) =
+    sum(eachindex(α)) do i
+        evaluate(gc.metric, points(gc, α[i]), points(gc, α[mod1(i + 1, length(α))]))
     end
-    res
+
+LightGraphs.diameter(gc, α) = maximum(pairwise_ambient_distance(gc, α, α))
+
+struct Cycle{T, G<:GeodesicComplex{T}}
+    complex   ::G
+    indices   ::Vector{Int}
+    perimeter ::T
+    diameter  ::T
 end
 
-struct Cycle{T}
-    points     ::Vector{Int}
-    dense      ::Vector{Int}
-    triangle   ::NTuple{3, Int}
-    perimeter  ::T
-    diameter   ::T
-    death      ::T
-    deathpoint ::Int
-end
+Base.length(α::Cycle) = length(α.indices)
 
-struct IntrinsicPersistenceResults{T, G<:GeodesicComplex{T}}
-    complex    ::G
-    cycles ::Vector{Cycle{T}}
-end
+points(α::Cycle) = points(α.complex, α.indices)
 
+perimeter(α::Cycle) = α.perimeter
+
+LightGraphs.diameter(α::Cycle) = α.diameter #?
+
+#TODO densify(cycle, niter=Inf)
 # TODO: critical points
