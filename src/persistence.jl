@@ -151,7 +151,7 @@ function processtriangle!(st::PersistenceState, triangle, diameter)
     end
 end
 
-function persistence(gc, showprogress = false)
+function persistence(gc; showprogress = false, dense = false)
     NOP_COUNT[] = 0
     YEP_COUNT[] = 0
     ALL_COUNT[] = 0
@@ -166,7 +166,7 @@ function persistence(gc, showprogress = false)
     cycles = map(st.results) do (α, _, _)
         landmarks(gc, α)
     end
-    postprocess(gc, cycles)
+    postprocess(gc, cycles, dense = dense)
 end
 
 # ======================================================================================== #
@@ -262,7 +262,7 @@ function move!(a, b)
     a
 end
 
-function postprocess(gc, cycles, dense = false)
+function postprocess(gc, cycles; dense = false)
     res = map(cycles) do α
         if dense
             cycle = densify(gc, α)
@@ -290,6 +290,9 @@ struct Cycle{T, G<:GeodesicComplex{T}}
     perimeter ::T
     diameter  ::T
 end
+
+Base.show(io::IO, α::Cycle) =
+    print(io, "$(length(α))-element Cycle with p = $(perimeter(α)), d = $(diameter(α))")
 
 Base.length(α::Cycle) = length(α.indices)
 
