@@ -1,3 +1,24 @@
+struct Cycle{T, C}
+    complex   ::C
+    indices   ::Vector{Int}
+    perimeter ::T
+    diameter  ::T
+end
+
+Cycle(complex, indices) =
+    Cycle(complex, indices, perimeter_and_diameter(complex, indices)...)
+
+Base.show(io::IO, α::Cycle) =
+    print(io, "$(length(α))-element Cycle with p = $(perimeter(α)), d = $(diameter(α))")
+
+Base.length(α::Cycle) = length(α.indices)
+
+points(α::Cycle) = points(α.complex, α.indices)
+
+perimeter(α::Cycle) = α.perimeter
+
+LightGraphs.diameter(α::Cycle) = α.diameter
+
 """
     getindexmatrix(dists)
 
@@ -33,7 +54,6 @@ struct PersistenceState{T}
 end
 
 function PersistenceState(gc)
-    # todo: is this correct? should be maximum(weights)?
     r = radius(gc)
     # todo: split connected components
     dists, parents = landmark_shortest_paths(gc)
@@ -48,11 +68,6 @@ end
 
 Base.show(io::IO, st::PersistenceState) = print(io, "PersistenceState")
 
-const NOP_COUNT = Ref(0)
-const YEP_COUNT = Ref(0)
-const ALL_COUNT = Ref(0)
-const RED_COUNT = Ref(0)
-
 """
     isgeodesic(st, Δ)
 
@@ -62,7 +77,6 @@ function isgeodesic(st, Δ)
     length(st.cycle) == 3 && return true
     d = st.dists
     dik = djk = zero(eltype(d))
-    ALL_COUNT[] += 1
     # add offset to get it right in the first go.
     j, k, i = Δ
     for x in st.cycle
@@ -77,11 +91,9 @@ function isgeodesic(st, Δ)
         # st.radius is the shortest edge in graph.
         if d[x, k] + st.radius/2 < min(d[x, i] + dik,
                                        d[x, j] + djk)
-            NOP_COUNT[] += 1
             return false
         end
     end
-    YEP_COUNT[] += 1
     true
 end
 
@@ -146,16 +158,10 @@ function processtriangle!(st::PersistenceState, triangle, diameter)
     if l ≠ 0
         st.reduced[l] = copy(st.σ)
         push!(st.results, (copy(st.cycle), triangle, diameter))
-    else
-        RED_COUNT[] += 1
     end
 end
 
-function persistence(gc; showprogress = false, dense = false)
-    NOP_COUNT[] = 0
-    YEP_COUNT[] = 0
-    ALL_COUNT[] = 0
-    RED_COUNT[] = 0
+function persistence(gc; showprogress = false, dense = false, shrinked = true)
     showprogress && println("Calculating intrinsic persistence...")
     st = PersistenceState(gc)
 
@@ -166,7 +172,7 @@ function persistence(gc; showprogress = false, dense = false)
     cycles = map(st.results) do (α, _, _)
         landmarks(gc, α)
     end
-    postprocess(gc, cycles, dense = dense)
+    postprocess(gc, cycles, dense = dense, shrinked = shrinked)
 end
 
 # ======================================================================================== #
@@ -182,7 +188,8 @@ function centerpoint(gc, p, pts)
     μ, inball[i]
 end
 
-shrink(gc, α) where {T} = shrink!(gc, copy(α))
+shrink(gc, α) = shrink!(gc, copy(α))
+shrink(α::Cycle) = shrink(α.complex, α.indices)
 
 function shrink!(gc, α)
     changed = true
@@ -202,9 +209,8 @@ function shrink!(gc, α)
     end
     α
 end
+shrink!(α::Cycle) = shrink!(α.complex, α.indices)
 
-# Kaj bo s tem?
-# TODO: densify + shrink
 function densify(gc::GeodesicComplex, α)
     α = copy(α)
     β = Int[]
@@ -229,31 +235,7 @@ function densify(gc::GeodesicComplex, α)
     end
     α
 end
-
-#=
-function criticalpoints(gc::GeodesicComplex, α)
-    α = copy(α)
-    ε = zero(T)
-    changed = true
-    while changed
-        changed = false
-        d = ε = typemax(T)
-        for (i, u) in enumerate(α)
-            inball = nearby_points(gc, u)
-            # Spaghetti mapreduce avoids allocating distance matrices.
-            ε, j = mapreduce(min, enumerate(inball)) do (i, v)
-                (maximum(evaluate(gc.metric, points(gc, v), landmarks(gc, w))
-                         for w in cycle), i)
-            end
-            d = min(ε, d)
-            changed |= α[i] ≠ N[j]
-            α[i] = N[j]
-        end
-        unique!(α)
-    end
-    α, ε
-end
-=#
+densify(α::Cycle) = densify(α.complex, α.indices)
 
 function move!(a, b)
     resize!(a, length(b))
@@ -262,45 +244,28 @@ function move!(a, b)
     a
 end
 
-function postprocess(gc, cycles; dense = false)
+function postprocess(gc, cycles; dense = false, shrinked = true)
     res = map(cycles) do α
-        if dense
-            cycle = densify(gc, α)
-        else
-            cycle = shrink(gc, α)
+        if shrinked
+            α = shrink(gc, α)
         end
-        Cycle(gc, cycle, perimeter(gc, cycle), diameter(gc, cycle))
+        if dense
+            α = densify(gc, α)
+        end
+        Cycle(gc, α)
     end
-    filter!(res) do cycle
-        length(cycle) > 2 && diameter(cycle) > radius(gc)
+    filter!(res) do α
+        length(α) > 2 && diameter(α) > 2radius(gc)
     end
 end
 
-#TODO new interface
-perimeter(gc, α) =
-    sum(eachindex(α)) do i
-        evaluate(gc.metric, points(gc, α[i]), points(gc, α[mod1(i + 1, length(α))]))
+function perimeter_and_diameter(gc, α)
+    dists = pairwise_ambient_distance(gc, α, α)
+
+    perimeter = sum(eachindex(α)) do i
+        dists[i, mod1(i+1, length(α))]
     end
+    diameter = maximum(dists)
 
-LightGraphs.diameter(gc, α) = maximum(pairwise_ambient_distance(gc, α, α))
-
-struct Cycle{T, G<:GeodesicComplex{T}}
-    complex   ::G
-    indices   ::Vector{Int}
-    perimeter ::T
-    diameter  ::T
+    perimeter, diameter
 end
-
-Base.show(io::IO, α::Cycle) =
-    print(io, "$(length(α))-element Cycle with p = $(perimeter(α)), d = $(diameter(α))")
-
-Base.length(α::Cycle) = length(α.indices)
-
-points(α::Cycle) = points(α.complex, α.indices)
-
-perimeter(α::Cycle) = α.perimeter
-
-LightGraphs.diameter(α::Cycle) = α.diameter #?
-
-#TODO densify(cycle, niter=Inf)
-# TODO: critical points
